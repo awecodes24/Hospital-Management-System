@@ -1,11 +1,11 @@
-import { useState } from 'react';
-import { FlaskConical, Search } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { FlaskConical, Search, X, User } from 'lucide-react';
 import { usePatients, useMedicalRecords, usePrescriptions, usePendingLab, useUpdateLabResult } from '@/hooks';
 import {
-  SectionHeader, Select, Table, Tr, Td, StatusBadge, PageLoader, EmptyState, Modal, Button, Input, Textarea
+  SectionHeader, Table, Tr, Td, StatusBadge, PageLoader, EmptyState, Modal, Button, Input, Textarea, Select
 } from '@/components/shared';
 import { formatDate, cn } from '@/lib/utils';
-import type { LabResultStatus } from '@/types';
+import type { LabResultStatus, Patient } from '@/types';
 
 type TabId = 'records' | 'prescriptions' | 'lab';
 
@@ -18,20 +18,40 @@ const LAB_STATUS_OPTIONS: { value: LabResultStatus; label: string }[] = [
 
 export default function ClinicalPage() {
   const [tab, setTab] = useState<TabId>('records');
-  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
   const [showLabUpdate, setShowLabUpdate] = useState<number | null>(null);
   const [labForm, setLabForm] = useState({ result_value: '', result_date: '', status: 'Completed' as LabResultStatus, remarks: '' });
+  const searchRef = useRef<HTMLDivElement>(null);
 
-  const { data: patients } = usePatients({ limit: 200 });
-  const { data: records, isLoading: loadRecords } = useMedicalRecords(selectedPatientId ?? 0);
-  const { data: prescriptions, isLoading: loadRx } = usePrescriptions(selectedPatientId ?? 0);
+  const { data: patients } = usePatients({ limit: 200, search: searchQuery || undefined });
+  const { data: records, isLoading: loadRecords } = useMedicalRecords(selectedPatient?.patient_id ?? 0);
+  const { data: prescriptions, isLoading: loadRx } = usePrescriptions(selectedPatient?.patient_id ?? 0);
   const { data: pendingLab, isLoading: loadLab } = usePendingLab();
   const updateLab = useUpdateLabResult();
 
-  const patientOptions = [
-    { value: '', label: 'Select a patient…' },
-    ...(patients?.data.map(p => ({ value: String(p.patient_id), label: `${p.first_name} ${p.last_name} — #${p.patient_id}` })) ?? []),
-  ];
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  function selectPatient(p: Patient) {
+    setSelectedPatient(p);
+    setSearchQuery(`${p.first_name} ${p.last_name}`);
+    setShowDropdown(false);
+  }
+
+  function clearPatient() {
+    setSelectedPatient(null);
+    setSearchQuery('');
+  }
 
   async function handleLabUpdate() {
     if (!showLabUpdate) return;
@@ -45,6 +65,8 @@ export default function ClinicalPage() {
     { id: 'prescriptions', label: 'Prescriptions' },
     { id: 'lab', label: `Pending Lab (${pendingLab?.length ?? '…'})` },
   ];
+
+  const filteredPatients = patients?.data ?? [];
 
   return (
     <div>
@@ -62,23 +84,91 @@ export default function ClinicalPage() {
         ))}
       </div>
 
-      {/* Patient selector for records + prescriptions */}
+      {/* Patient search — only for records + prescriptions tabs */}
       {(tab === 'records' || tab === 'prescriptions') && (
-        <div className="mb-5 max-w-sm">
-          <Select
-            label="Patient"
-            value={String(selectedPatientId ?? '')}
-            onChange={e => setSelectedPatientId(e.target.value ? parseInt(e.target.value) : null)}
-            options={patientOptions}
-          />
+        <div className="mb-5 max-w-sm" ref={searchRef}>
+          <label className="block text-xs font-medium text-[#4A5568] mb-1">Search Patient</label>
+          <div className="relative">
+            {/* Search icon */}
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#4A5568] pointer-events-none" />
+
+            <input
+              value={searchQuery}
+              onChange={e => {
+                setSearchQuery(e.target.value);
+                setShowDropdown(true);
+                if (!e.target.value) setSelectedPatient(null);
+              }}
+              onFocus={() => setShowDropdown(true)}
+              placeholder="Type name or phone…"
+              className="input pl-9 pr-9"
+            />
+
+            {/* Clear button */}
+            {searchQuery && (
+              <button
+                onClick={clearPatient}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#4A5568] hover:text-[#1A2332] transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {/* Dropdown results */}
+            {showDropdown && searchQuery && (
+              <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white rounded-xl shadow-2xl border border-[#C0C8BB]/20 overflow-hidden max-h-64 overflow-y-auto">
+                {filteredPatients.length === 0 ? (
+                  <div className="px-4 py-3 text-xs text-[#4A5568] text-center">No patients found</div>
+                ) : (
+                  filteredPatients.map(p => (
+                    <button
+                      key={p.patient_id}
+                      onClick={() => selectPatient(p)}
+                      className="w-full text-left px-4 py-2.5 hover:bg-[#F0F4F8] transition-colors flex items-center gap-3 group"
+                    >
+                      <div className="w-7 h-7 rounded-full bg-[#006B58]/10 flex items-center justify-center shrink-0">
+                        <span className="text-xs font-semibold text-[#006B58]">
+                          {p.first_name[0]}{p.last_name[0]}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-[#1A2332]">{p.first_name} {p.last_name}</p>
+                        <p className="text-xs text-[#4A5568]">{p.phone} · #{p.patient_id}</p>
+                      </div>
+                      {p.blood_group && (
+                        <span className="text-xs font-mono font-semibold text-[#006B58] shrink-0">{p.blood_group}</span>
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Selected patient pill */}
+          {selectedPatient && (
+            <div className="mt-2 flex items-center gap-2 bg-[#006B58]/10 rounded-lg px-3 py-2 w-fit">
+              <User className="w-3 h-3 text-[#006B58]" />
+              <span className="text-xs font-medium text-[#006B58]">
+                {selectedPatient.first_name} {selectedPatient.last_name} · #{selectedPatient.patient_id}
+              </span>
+              <button onClick={clearPatient} className="text-[#006B58]/60 hover:text-[#006B58] ml-1">
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
       {/* Medical Records */}
       {tab === 'records' && (
         <div className="card">
-          {!selectedPatientId ? (
-            <EmptyState icon={<Search className="w-8 h-8" />} title="Select a patient" description="Choose a patient above to view their medical records." />
+          {!selectedPatient ? (
+            <EmptyState
+              icon={<Search className="w-8 h-8" />}
+              title="Search for a patient"
+              description="Type a name or phone number above to find a patient and view their records."
+            />
           ) : loadRecords ? <PageLoader /> : (
             <>
               <Table headers={['Date', 'Doctor', 'Chief Complaint', 'Diagnosis', 'Treatment', 'Vitals']}>
@@ -104,7 +194,7 @@ export default function ClinicalPage() {
                   </Tr>
                 ))}
               </Table>
-              {!records?.length && <EmptyState icon={<FlaskConical className="w-8 h-8" />} title="No records found" />}
+              {!records?.length && <EmptyState icon={<FlaskConical className="w-8 h-8" />} title="No records found" description="This patient has no medical records yet." />}
             </>
           )}
         </div>
@@ -113,8 +203,12 @@ export default function ClinicalPage() {
       {/* Prescriptions */}
       {tab === 'prescriptions' && (
         <div className="card">
-          {!selectedPatientId ? (
-            <EmptyState icon={<Search className="w-8 h-8" />} title="Select a patient" description="Choose a patient above to view their prescriptions." />
+          {!selectedPatient ? (
+            <EmptyState
+              icon={<Search className="w-8 h-8" />}
+              title="Search for a patient"
+              description="Type a name or phone number above to find a patient and view their prescriptions."
+            />
           ) : loadRx ? <PageLoader /> : (
             <>
               <Table headers={['Date', 'Doctor', 'Valid Till', 'Notes', 'Status']}>
@@ -128,7 +222,7 @@ export default function ClinicalPage() {
                   </Tr>
                 ))}
               </Table>
-              {!prescriptions?.length && <EmptyState title="No prescriptions" />}
+              {!prescriptions?.length && <EmptyState title="No prescriptions" description="This patient has no prescriptions yet." />}
             </>
           )}
         </div>

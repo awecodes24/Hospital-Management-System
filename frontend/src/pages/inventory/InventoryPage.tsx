@@ -135,25 +135,29 @@ export default function InventoryPage() {
           {loadLow ? <PageLoader /> : (
             <>
               <Table headers={['Medicine', 'Category', 'Current Stock', 'Reorder Level', 'Expiry', 'Status', '']}>
-                {lowStock?.map(m => (
+                {lowStock?.map(m => {
+                  // vw_low_stock returns: medicine_name, current_stock (not name/quantity)
+                  const name  = (m as any).medicine_name ?? m.name ?? '—';
+                  const stock = Number((m as any).current_stock ?? m.quantity ?? 0);
+                  return (
                   <Tr key={m.medicine_id}>
                     <Td>
-                      <p className="font-medium">{m.name}</p>
+                      <p className="font-medium">{name}</p>
                     </Td>
                     <Td className="text-xs text-[#4A5568]">{m.category ?? '—'}</Td>
                     <Td>
-                      <span className={cn('font-mono text-sm font-semibold', Number(m.quantity) === 0 ? 'text-[#BA1A1A]' : 'text-amber-600')}>
-                        {Number(m.quantity)}
+                      <span className={cn('font-mono text-sm font-semibold', stock === 0 ? 'text-[#BA1A1A]' : 'text-amber-600')}>
+                        {stock}
                       </span>
                     </Td>
-                    <Td className="font-mono text-xs text-[#4A5568]">{m.reorder_level ?? '—'}</Td>
+                    <Td className="font-mono text-xs text-[#4A5568]">{Number(m.reorder_level) || '—'}</Td>
                     <Td className="text-xs text-[#4A5568]">{formatDate(m.expiry_date)}</Td>
                     <Td><StatusBadge status={m.stock_status} /></Td>
                     <Td>
                       <button
                         onClick={() => {
                           setShowUpdate(m.medicine_id);
-                          setStockForm({ quantity: String(Number(m.quantity)), expiry_date: '' });
+                          setStockForm({ quantity: String(stock), expiry_date: '' });
                         }}
                         className="text-xs text-[#006B58] hover:underline"
                       >
@@ -161,7 +165,8 @@ export default function InventoryPage() {
                       </button>
                     </Td>
                   </Tr>
-                ))}
+                  );
+                })}
               </Table>
               {!lowStock?.length && (
                 <EmptyState

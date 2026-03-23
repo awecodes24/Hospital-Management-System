@@ -6,7 +6,7 @@ import {
   SpRegisterPatientResult,
 } from '../../types/db.types';
 
-// ── List ──────────────────────────────────────────────────────
+// list
 
 export async function getActiveAdmissions() {
   return query<{
@@ -84,7 +84,7 @@ export async function countAdmissions(): Promise<number> {
   return rows[0].total;
 }
 
-// ── Single ────────────────────────────────────────────────────
+// Single
 
 export async function getAdmissionById(admissionId: number) {
   return queryOne<AdmissionRow & {
@@ -120,7 +120,7 @@ export async function getAdmissionById(admissionId: number) {
   );
 }
 
-// ── Bed occupancy (view) ──────────────────────────────────────
+// Bed occupancy (view)
 
 export async function getBedOccupancy() {
   return query<{
@@ -177,8 +177,7 @@ export async function getOccupancyByRoomType() {
   );
 }
 
-// ── Waiting list (view) ───────────────────────────────────────
-
+// Waiting list (view) 
 export async function getWaitingList() {
   return query<{
     waiting_id:        number;
@@ -216,8 +215,7 @@ export async function addToWaitingList(data: {
   return (result as unknown as { insertId: number }).insertId;
 }
 
-// ── Stored procedures ─────────────────────────────────────────
-
+//Stored procedures 
 export async function admitPatient(data: {
   patient_id:    number;
   bed_id:        number | null;

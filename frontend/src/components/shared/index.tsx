@@ -1,5 +1,6 @@
 import { cn, getStatusChip } from '@/lib/utils';
 import { Loader2, AlertCircle } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react';
 
 // ─── Button ───────────────────────────────────────────────────────────────────
@@ -189,25 +190,42 @@ export function Pagination({ page, pages, total, limit, onPage }: {
 }
 
 // ─── Modal / Dialog ───────────────────────────────────────────────────────────
+
 export function Modal({ open, onClose, title, children, size = 'md' }: {
   open: boolean; onClose: () => void; title: string; children: ReactNode; size?: 'sm' | 'md' | 'lg';
 }) {
   if (!open) return null;
   const sizes = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl' };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-[#1A2332]/20 backdrop-blur-sm" onClick={onClose} />
-      <div className={cn('relative bg-white rounded-2xl shadow-2xl w-full', sizes[size])}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#C0C8BB]/30">
+  return createPortal(
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9990, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+      {/* Backdrop */}
+      <div
+        style={{ position: 'absolute', inset: 0, background: 'rgba(26,35,50,0.4)', backdropFilter: 'blur(4px)' }}
+        onClick={onClose}
+      />
+      {/* Panel */}
+      <div
+        className={cn('relative bg-white rounded-2xl shadow-2xl w-full flex flex-col', sizes[size])}
+        style={{ maxHeight: 'calc(100vh - 2rem)', zIndex: 9991 }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#C0C8BB]/30 shrink-0">
           <h2 className="font-sans text-base font-semibold text-[#1A2332]">{title}</h2>
-          <button onClick={onClose} className="text-[#4A5568] hover:text-[#1A2332] p-1 rounded-lg hover:bg-[#E8EEF4] transition-colors text-lg leading-none">
+          <button
+            onClick={onClose}
+            className="text-[#4A5568] hover:text-[#1A2332] p-1 rounded-lg hover:bg-[#E8EEF4] transition-colors text-lg leading-none"
+          >
             ×
           </button>
         </div>
-        <div className="px-6 py-5">{children}</div>
+        {/* Body */}
+        <div className="px-6 py-5 overflow-y-auto">
+          {children}
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
